@@ -4,21 +4,1384 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>마인스위퍼 — 클래식 지뢰찾기</title>
-    <meta name="description" content="첫 클릭 안전 보장, 주변 동시 열기(Chording), 난이도별 최고 기록을 지원하는 정통 전략 지뢰찾기 퍼즐 게임입니다." />
+    <meta
+      name="description"
+      content="첫 클릭 안전 보장, 주변 동시 열기(Chording), 난이도별 최고 기록을 지원하는 정통 전략 지뢰찾기 퍼즐 게임입니다."
+    />
     <meta property="og:title" content="마인스위퍼 — 클래식 지뢰찾기" />
-    <meta property="og:description" content="첫 클릭 안전 보장, 주변 동시 열기(Chording), 난이도별 최고 기록을 지원하는 정통 전략 지뢰찾기 퍼즐 게임입니다." />
+    <meta
+      property="og:description"
+      content="첫 클릭 안전 보장, 주변 동시 열기(Chording), 난이도별 최고 기록을 지원하는 정통 전략 지뢰찾기 퍼즐 게임입니다."
+    />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Google Fonts: Outfit, Noto Sans KR, JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+KR:wght@400;500;700&family=Outfit:wght@600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- Tailwind CSS Play CDN (Zero-build support for GitHub Pages) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Noto Sans KR"', 'Outfit', 'system-ui', '-apple-system', 'sans-serif'],
+              display: ['Outfit', '"Noto Sans KR"', 'system-ui', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
+
+    <style>
+      html {
+        font-family: "Noto Sans KR", "Outfit", system-ui, -apple-system, sans-serif;
+        letter-spacing: 0.01em;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid #fbbf24;
+        outline-offset: 2px;
+      }
+
+      .text-balance-heading {
+        text-wrap: balance;
+      }
+
+      /* Tactile slate tile elevation using pure box-shadow & compositor-friendly transforms */
+      .tile-unrevealed {
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+          inset 0 -2px 0 0 rgba(2, 6, 23, 0.45);
+        transition:
+          transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
+          background-color 120ms ease;
+      }
+
+      .tile-unrevealed:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      .tile-unrevealed:active:not(:disabled),
+      .tile-pressed {
+        transform: translateY(1px);
+        box-shadow: inset 0 1px 2px 0 rgba(2, 6, 23, 0.65);
+      }
+
+      .tile-revealed {
+        box-shadow: inset 0 1px 2px 0 rgba(2, 6, 23, 0.45);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500/30 selection:text-amber-200">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+      <!-- Top Bar (3-Zone Contract) -->
+      <header class="border-b border-slate-800/90 bg-slate-950/95 backdrop-blur-sm">
+        <div class="mx-auto flex max-w-[1280px] items-center justify-between gap-8 px-6 py-4">
+          <!-- Zone 1: Single text element wordmark -->
+          <button
+            id="brand-btn"
+            type="button"
+            class="font-display text-lg font-bold tracking-tight text-slate-100 transition-colors hover:text-amber-400 whitespace-nowrap shrink-0"
+          >
+            마인스위퍼
+          </button>
+
+          <!-- Zone 2: 4 clean single-line text navigation links -->
+          <nav aria-label="주요 메뉴" class="hidden md:flex items-center gap-7 text-sm font-medium">
+            <button
+              type="button"
+              data-nav="PLAY"
+              class="relative py-1 transition-colors whitespace-nowrap shrink-0 text-slate-400 hover:text-slate-100"
+            >
+              게임 보드
+            </button>
+            <button
+              type="button"
+              data-nav="SETUP"
+              class="relative py-1 transition-colors whitespace-nowrap shrink-0 text-slate-100 underline decoration-amber-400 decoration-2 underline-offset-8"
+            >
+              난이도 선택
+            </button>
+            <button
+              type="button"
+              data-nav="RECORDS"
+              class="relative py-1 transition-colors whitespace-nowrap shrink-0 text-slate-400 hover:text-slate-100"
+            >
+              최고 기록
+            </button>
+            <button
+              type="button"
+              data-nav="GUIDE"
+              class="relative py-1 transition-colors whitespace-nowrap shrink-0 text-slate-400 hover:text-slate-100"
+            >
+              플레이 가이드
+            </button>
+          </nav>
+
+          <!-- Zone 3: 1 primary action -->
+          <div class="flex items-center shrink-0">
+            <button
+              id="header-new-game-btn"
+              type="button"
+              class="rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950 transition-colors duration-150 hover:bg-amber-400 whitespace-nowrap shrink-0"
+            >
+              새 게임
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Mobile Section Switcher (visible below md breakpoint) -->
+      <div class="border-b border-slate-800/80 bg-slate-950 px-4 py-2 md:hidden">
+        <div class="grid grid-cols-4 gap-1 rounded-lg bg-slate-900 p-1">
+          <button
+            type="button"
+            data-mobile-nav="PLAY"
+            class="rounded-md py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 text-slate-400 hover:text-slate-200"
+          >
+            게임 보드
+          </button>
+          <button
+            type="button"
+            data-mobile-nav="SETUP"
+            class="rounded-md py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 bg-slate-800 text-amber-400"
+          >
+            난이도
+          </button>
+          <button
+            type="button"
+            data-mobile-nav="RECORDS"
+            class="rounded-md py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 text-slate-400 hover:text-slate-200"
+          >
+            최고 기록
+          </button>
+          <button
+            type="button"
+            data-mobile-nav="GUIDE"
+            class="rounded-md py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 text-slate-400 hover:text-slate-200"
+          >
+            가이드
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Workspace -->
+      <main class="flex-1">
+        <!-- SECTION 1: SETUP / TITLE MENU -->
+        <div id="section-setup" class="mx-auto max-w-[1200px] px-6 py-8 md:py-12">
+          <!-- 2-Column Hero Split -->
+          <section class="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12 lg:gap-12">
+            <!-- Left Column -->
+            <div class="flex flex-col justify-between lg:col-span-7">
+              <div>
+                <p class="text-xs font-medium text-slate-400">
+                  <span>정통 전략 지뢰찾기</span>
+                  <span aria-hidden="true" class="mx-2 text-slate-600">·</span>
+                  <span>첫 클릭 안전 구역 보장</span>
+                  <span aria-hidden="true" class="mx-2 text-slate-600">·</span>
+                  <span>주변 동시 열기 지원</span>
+                </p>
+
+                <h1 class="text-balance-heading mt-3 font-display text-3xl font-bold tracking-tight text-slate-50 sm:text-4xl lg:text-[2.65rem] lg:leading-[1.18]">
+                  숫자의 단서로 지뢰밭을 해독하는 정교한 논리 퍼즐
+                </h1>
+
+                <p class="mt-4 max-w-[62ch] text-base leading-relaxed text-slate-300">
+                  운에 기대는 첫 클릭 폭발 없이 항상 안전한 개방 구역에서 출발합니다.
+                  열린 숫자를 클릭해 주변 칸을 단번에 여는 코드 열기(Chording)와 키보드·터치
+                  단축 조작으로 쾌적하게 최고 기록에 도전해 보세요.
+                </p>
+
+                <!-- Difficulty Segmented Control -->
+                <div class="mt-8">
+                  <div class="flex items-center justify-between gap-4">
+                    <span class="text-sm font-semibold text-slate-200">난이도 규격 선택</span>
+                    <span id="setup-spec-summary" class="font-mono text-xs text-slate-400 tabular-nums">
+                      9 × 9 격자 · 지뢰 10개 · 밀도 12.3%
+                    </span>
+                  </div>
+
+                  <div
+                    role="radiogroup"
+                    aria-label="난이도 선택"
+                    class="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-slate-800 bg-slate-900 p-1.5 sm:grid-cols-4"
+                  >
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked="true"
+                      data-setup-diff="beginner"
+                      class="flex items-center justify-between gap-2 rounded-lg bg-slate-800 px-3.5 py-2.5 text-sm font-medium text-amber-400 shadow-sm transition-colors duration-150 whitespace-nowrap shrink-0"
+                    >
+                      <span>초급</span>
+                      <span class="font-mono text-xs text-slate-400 tabular-nums">9×9</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked="false"
+                      data-setup-diff="intermediate"
+                      class="flex items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-300 transition-colors duration-150 hover:bg-slate-800/50 hover:text-slate-100 whitespace-nowrap shrink-0"
+                    >
+                      <span>중급</span>
+                      <span class="font-mono text-xs text-slate-400 tabular-nums">16×16</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked="false"
+                      data-setup-diff="expert"
+                      class="flex items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-300 transition-colors duration-150 hover:bg-slate-800/50 hover:text-slate-100 whitespace-nowrap shrink-0"
+                    >
+                      <span>고급</span>
+                      <span class="font-mono text-xs text-slate-400 tabular-nums">30×16</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked="false"
+                      data-setup-diff="custom"
+                      class="flex items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium text-slate-300 transition-colors duration-150 hover:bg-slate-800/50 hover:text-slate-100 whitespace-nowrap shrink-0"
+                    >
+                      <span>사용자 지정</span>
+                      <span id="setup-custom-dim-label" class="font-mono text-xs text-slate-400 tabular-nums">16×12</span>
+                    </button>
+                  </div>
+
+                  <p id="setup-diff-subtitle" class="mt-2.5 text-xs text-slate-400">
+                    입문 및 워밍업에 적합한 클래식 규격
+                  </p>
+
+                  <!-- Custom Board Configurator -->
+                  <div
+                    id="setup-custom-panel"
+                    class="hidden mt-4 grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4 sm:grid-cols-3"
+                  >
+                    <label class="block">
+                      <span class="flex items-center justify-between text-xs text-slate-300">
+                        <span>가로 칸 수 (8–30)</span>
+                        <span id="custom-cols-val" class="font-mono font-semibold text-amber-400 tabular-nums">16</span>
+                      </span>
+                      <input
+                        id="custom-cols-range"
+                        type="range"
+                        min="8"
+                        max="30"
+                        value="16"
+                        class="mt-2 w-full accent-amber-500"
+                      />
+                    </label>
+
+                    <label class="block">
+                      <span class="flex items-center justify-between text-xs text-slate-300">
+                        <span>세로 칸 수 (8–24)</span>
+                        <span id="custom-rows-val" class="font-mono font-semibold text-amber-400 tabular-nums">12</span>
+                      </span>
+                      <input
+                        id="custom-rows-range"
+                        type="range"
+                        min="8"
+                        max="24"
+                        value="12"
+                        class="mt-2 w-full accent-amber-500"
+                      />
+                    </label>
+
+                    <label class="block">
+                      <span class="flex items-center justify-between text-xs text-slate-300">
+                        <span id="custom-mines-max-label">지뢰 수 (5–67)</span>
+                        <span id="custom-mines-val" class="font-mono font-semibold text-amber-400 tabular-nums">32</span>
+                      </span>
+                      <input
+                        id="custom-mines-range"
+                        type="range"
+                        min="5"
+                        max="67"
+                        value="32"
+                        class="mt-2 w-full accent-amber-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Primary Action Row -->
+              <div class="mt-8 flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  id="setup-start-btn"
+                  type="button"
+                  class="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-amber-500 px-6 py-2.5 text-sm font-semibold text-slate-950 transition-colors duration-150 hover:bg-amber-400 whitespace-nowrap shrink-0"
+                >
+                  <svg class="h-4 w-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                    <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                  </svg>
+                  <span id="setup-start-label">초급 게임 시작</span>
+                </button>
+
+                <button
+                  id="setup-resume-btn"
+                  type="button"
+                  class="hidden min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-5 py-2.5 text-sm font-medium text-slate-200 transition-colors duration-150 hover:border-slate-600 hover:bg-slate-800 whitespace-nowrap shrink-0"
+                >
+                  진행 중인 보드로 복귀
+                </button>
+
+                <button
+                  id="setup-guide-btn"
+                  type="button"
+                  class="inline-flex min-h-[44px] items-center justify-center px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:text-slate-200 hover:underline hover:underline-offset-4 whitespace-nowrap shrink-0"
+                >
+                  규칙 및 단축키 안내
+                </button>
+              </div>
+            </div>
+
+            <!-- Right Column: Bespoke Tabletop Artwork with Scrim & Resilient Fallback -->
+            <div class="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 lg:col-span-5">
+              <img
+                id="hero-board-img"
+                src="./src/assets/images/tactical_minesweeper_board_1793672200447.jpg"
+                alt="다크 슬레이트 타일과 앰버 깃발 핀으로 구성된 전략 지뢰찾기 보드"
+                referrerpolicy="no-referrer"
+                class="h-64 w-full object-cover sm:h-80 lg:h-full"
+              />
+              <div
+                id="hero-board-fallback"
+                class="hidden h-64 w-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-8 sm:h-80 lg:h-full"
+              >
+                <svg
+                  class="h-14 w-14 text-amber-400/80"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                  <path d="M3 9h18M3 15h18M9 3v18M15 3v18"></path>
+                </svg>
+                <p class="mt-3 font-display text-base font-semibold text-slate-200">
+                  전략 지뢰찾기 보드
+                </p>
+              </div>
+
+              <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent"></div>
+
+              <div class="absolute inset-x-0 bottom-0 p-6">
+                <p class="text-xs font-medium text-amber-300">핵심 조작 요약</p>
+                <div class="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-200 sm:grid-cols-3 lg:grid-cols-1">
+                  <div class="flex items-center gap-2">
+                    <svg
+                      class="h-4 w-4 text-emerald-400 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+                      <path d="m9 12 2 2 4-4"></path>
+                    </svg>
+                    <span>좌클릭으로 안전 칸 개방 (첫 클릭 100% 안전)</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <svg
+                      class="h-4 w-4 text-amber-400 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                      <line x1="4" x2="4" y1="22" y2="15"></line>
+                    </svg>
+                    <span>우클릭 또는 길게 터치하여 지뢰 위치에 깃발 표시</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <svg
+                      class="h-4 w-4 text-sky-400 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
+                    </svg>
+                    <span>깃발 수가 맞은 열린 숫자를 클릭해 주변 칸 동시 개방</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Full-Width 4-Column Best Records & Summary Strip Below Hero Split -->
+          <section
+            aria-label="난이도별 최고 기록 요약"
+            class="mt-10 grid grid-cols-2 gap-6 border-t border-slate-800/90 pt-8 sm:grid-cols-4"
+          >
+            <div>
+              <p class="text-xs text-slate-400">초급 최고 기록 (9×9)</p>
+              <p id="summary-best-beginner" class="mt-1.5 font-mono text-xl font-bold text-slate-100 tabular-nums">
+                기록 없음
+              </p>
+              <p id="summary-stats-beginner" class="mt-1 text-xs text-slate-500 tabular-nums">
+                클리어 0회 · 도전 0회
+              </p>
+            </div>
+
+            <div>
+              <p class="text-xs text-slate-400">중급 최고 기록 (16×16)</p>
+              <p id="summary-best-intermediate" class="mt-1.5 font-mono text-xl font-bold text-slate-100 tabular-nums">
+                기록 없음
+              </p>
+              <p id="summary-stats-intermediate" class="mt-1 text-xs text-slate-500 tabular-nums">
+                클리어 0회 · 도전 0회
+              </p>
+            </div>
+
+            <div>
+              <p class="text-xs text-slate-400">고급 최고 기록 (30×16)</p>
+              <p id="summary-best-expert" class="mt-1.5 font-mono text-xl font-bold text-slate-100 tabular-nums">
+                기록 없음
+              </p>
+              <p id="summary-stats-expert" class="mt-1 text-xs text-slate-500 tabular-nums">
+                클리어 0회 · 도전 0회
+              </p>
+            </div>
+
+            <div>
+              <p class="text-xs text-slate-400">전체 승률 및 최다 연승</p>
+              <p id="summary-overall-winrate" class="mt-1.5 font-mono text-xl font-bold text-amber-400 tabular-nums">
+                0%
+              </p>
+              <p id="summary-overall-totals" class="mt-1 text-xs text-slate-500 tabular-nums">
+                총 0게임 · 최고 0연승
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <!-- SECTION 2: INTERACTIVE GAME BOARD -->
+        <div id="section-play" class="hidden mx-auto max-w-[1360px] px-4 py-6 sm:px-6 md:py-8">
+          <!-- Top Workspace Control Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-4">
+            <!-- Left: Difficulty Segmented Control -->
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 p-1">
+                <button
+                  type="button"
+                  data-play-diff="beginner"
+                  class="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors whitespace-nowrap shrink-0"
+                >
+                  초급
+                </button>
+                <button
+                  type="button"
+                  data-play-diff="intermediate"
+                  class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100 whitespace-nowrap shrink-0"
+                >
+                  중급
+                </button>
+                <button
+                  type="button"
+                  data-play-diff="expert"
+                  class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100 whitespace-nowrap shrink-0"
+                >
+                  고급
+                </button>
+                <button
+                  type="button"
+                  data-play-diff="custom"
+                  class="rounded-md px-3 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100 whitespace-nowrap shrink-0"
+                >
+                  사용자 지정
+                </button>
+              </div>
+
+              <span id="play-spec-summary" class="hidden font-mono text-xs text-slate-400 tabular-nums xl:inline">
+                9×9 · 지뢰 10개
+              </span>
+            </div>
+
+            <!-- Right: Gameplay Action & Accessibility Toolbar -->
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- Open vs Flag Mode Segmented Switch -->
+              <div
+                role="group"
+                aria-label="클릭 입력 모드"
+                class="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 p-1"
+              >
+                <button
+                  id="mode-reveal-btn"
+                  type="button"
+                  class="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-100 transition-colors whitespace-nowrap shrink-0"
+                >
+                  <svg
+                    class="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 4.1 12 6"></path>
+                    <path d="m5.1 8-2.9-.8"></path>
+                    <path d="m6 12-1.9 2"></path>
+                    <path d="M7.2 2.2 8 5.1"></path>
+                    <path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"></path>
+                  </svg>
+                  <span>열기</span>
+                </button>
+                <button
+                  id="mode-flag-btn"
+                  type="button"
+                  class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-200 whitespace-nowrap shrink-0"
+                >
+                  <svg
+                    class="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                    <line x1="4" x2="4" y1="22" y2="15"></line>
+                  </svg>
+                  <span>깃발</span>
+                </button>
+              </div>
+
+              <!-- Smart Safe Hint -->
+              <button
+                id="hint-btn"
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-slate-700 hover:bg-slate-800 disabled:opacity-45 whitespace-nowrap shrink-0"
+              >
+                <svg
+                  class="h-3.5 w-3.5 text-amber-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
+                  <path d="M9 18h6"></path>
+                  <path d="M10 22h4"></path>
+                </svg>
+                <span id="hint-count-label" class="tabular-nums">안전 힌트 (3)</span>
+              </button>
+
+              <!-- Pause / Resume -->
+              <button
+                id="pause-btn"
+                type="button"
+                disabled
+                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:border-slate-700 hover:bg-slate-800 disabled:opacity-45 whitespace-nowrap shrink-0"
+              >
+                <span id="pause-btn-icon" class="inline-flex items-center" aria-hidden="true"></span>
+                <span id="pause-btn-label">일시정지</span>
+              </button>
+
+              <!-- Question Mark Toggle -->
+              <button
+                id="question-toggle-btn"
+                type="button"
+                aria-pressed="false"
+                title="우클릭 시 물음표(?) 단계 포함 여부"
+                class="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs font-medium text-slate-400 transition-colors hover:text-slate-200 whitespace-nowrap shrink-0"
+              >
+                <svg
+                  class="h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <path d="M12 17h.01"></path>
+                </svg>
+                <span>물음표</span>
+              </button>
+
+              <!-- Large Tile Accessibility Toggle -->
+              <button
+                id="tilesize-toggle-btn"
+                type="button"
+                aria-pressed="false"
+                title="타일 크기 전환"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-slate-700 hover:text-slate-100 whitespace-nowrap shrink-0"
+              >
+                <span id="tilesize-toggle-icon" class="inline-flex items-center" aria-hidden="true"></span>
+                <span id="tilesize-toggle-label">크게 보기</span>
+              </button>
+
+              <!-- Sound Toggle -->
+              <button
+                id="sound-toggle-btn"
+                type="button"
+                aria-pressed="true"
+                aria-label="효과음 끄기"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-slate-700 hover:text-slate-100 whitespace-nowrap shrink-0"
+              >
+                <span id="sound-toggle-icon" class="inline-flex items-center" aria-hidden="true"></span>
+                <span id="sound-toggle-label" class="hidden sm:inline">효과음</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- HUD Meter Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-4 rounded-t-xl border border-b-0 border-slate-800 bg-slate-900/90 px-5 py-3.5">
+            <!-- Mine Counter -->
+            <div class="flex items-center gap-3">
+              <svg
+                id="hud-flag-icon"
+                class="h-4 w-4 text-amber-400 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                <line x1="4" x2="4" y1="22" y2="15"></line>
+              </svg>
+              <div>
+                <span class="block text-[11px] text-slate-400">남은 지뢰</span>
+                <span
+                  id="hud-remaining-mines"
+                  class="font-mono text-lg font-bold leading-none text-slate-100 tabular-nums"
+                >
+                  10
+                </span>
+              </div>
+            </div>
+
+            <!-- Center Status & Instant Restart Control -->
+            <div class="flex items-center gap-3">
+              <button
+                id="hud-status-restart-btn"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-100 transition-colors hover:bg-slate-700 whitespace-nowrap shrink-0"
+              >
+                첫 클릭 대기 · 새 보드
+              </button>
+
+              <button
+                id="hud-reopen-modal-btn"
+                type="button"
+                class="hidden rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 whitespace-nowrap shrink-0"
+              >
+                결과 요약 보기
+              </button>
+            </div>
+
+            <!-- Timer & Progress -->
+            <div class="flex items-center gap-5">
+              <div class="hidden text-right sm:block">
+                <span class="block text-[11px] text-slate-400">안전 개방률</span>
+                <span
+                  id="hud-progress-percent"
+                  class="font-mono text-sm font-semibold text-slate-300 tabular-nums"
+                >
+                  0%
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2.5">
+                <svg
+                  class="h-4 w-4 text-slate-400 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <div class="text-right">
+                  <span class="block text-[11px] text-slate-400">경과 시간</span>
+                  <span
+                    id="hud-elapsed-time"
+                    class="font-mono text-lg font-bold leading-none text-slate-100 tabular-nums"
+                  >
+                    00.0초
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Optional Hint Feedback Line -->
+          <div
+            id="hint-banner"
+            class="hidden border-x border-t border-slate-800 bg-slate-900/60 px-5 py-2 text-xs text-amber-300"
+          >
+            <span id="hint-banner-text"></span>
+          </div>
+
+          <!-- Main Board Arena Container -->
+          <div
+            id="board-arena"
+            class="relative flex min-h-[380px] items-center justify-center overflow-x-auto rounded-b-xl border border-slate-800 bg-slate-950 p-4 sm:p-6 select-none"
+          >
+            <div
+              id="minesweeper-grid"
+              role="grid"
+              aria-label="지뢰찾기 보드"
+              class="inline-grid gap-[2px] rounded-lg border border-slate-800 bg-slate-900 p-2 transition-opacity duration-150"
+            ></div>
+
+            <!-- Pause Fair-Play Overlay -->
+            <div
+              id="pause-overlay"
+              class="hidden absolute inset-0 flex-col items-center justify-center bg-slate-950/85 p-6 text-center backdrop-blur-sm"
+            >
+              <svg
+                class="h-9 w-9 text-amber-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+              <h2 class="mt-3 font-display text-xl font-bold text-slate-100">
+                게임이 일시정지되었습니다
+              </h2>
+              <p class="mt-1 text-sm text-slate-400">
+                공정한 기록 측정을 위해 일시정지 중에는 보드가 가려집니다.
+              </p>
+              <button
+                id="pause-resume-overlay-btn"
+                type="button"
+                class="mt-5 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-400 whitespace-nowrap shrink-0"
+              >
+                <svg class="h-4 w-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                </svg>
+                <span>게임 계속하기</span>
+              </button>
+            </div>
+
+            <!-- End State / Victory & Defeat Summary Modal -->
+            <div
+              id="end-modal-overlay"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="round-result-heading"
+              class="hidden absolute inset-0 z-20 items-center justify-center bg-slate-950/75 p-4 backdrop-blur-[2px]"
+            >
+              <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex items-center gap-2.5">
+                    <span id="modal-icon-slot" class="shrink-0"></span>
+                    <div>
+                      <p id="modal-kicker" class="text-xs font-medium text-slate-400"></p>
+                      <h2
+                        id="round-result-heading"
+                        class="mt-0.5 font-display text-xl font-bold text-slate-50"
+                      >
+                        모든 지뢰 해체 완료!
+                      </h2>
+                    </div>
+                  </div>
+
+                  <button
+                    id="modal-close-x-btn"
+                    type="button"
+                    aria-label="결과 창 닫고 보드 확인하기"
+                    class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
+                  >
+                    <svg
+                      class="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 6 6 18"></path>
+                      <path d="m6 6 12 12"></path>
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="mt-5 grid grid-cols-2 gap-4 border-y border-slate-800 py-4">
+                  <div>
+                    <span class="text-xs text-slate-400">소요 시간</span>
+                    <p
+                      id="modal-time-val"
+                      class="mt-1 font-mono text-xl font-bold text-slate-100 tabular-nums"
+                    >
+                      00.0초
+                    </p>
+                  </div>
+                  <div>
+                    <span class="text-xs text-slate-400">안전 칸 개방</span>
+                    <p
+                      id="modal-safe-val"
+                      class="mt-1 font-mono text-xl font-bold text-slate-100 tabular-nums"
+                    >
+                      0 / 71
+                    </p>
+                  </div>
+                  <div>
+                    <span class="text-xs text-slate-400">보드 난도 (3BV)</span>
+                    <p
+                      id="modal-3bv-val"
+                      class="mt-1 font-mono text-base font-semibold text-slate-300 tabular-nums"
+                    >
+                      -
+                    </p>
+                  </div>
+                  <div>
+                    <span class="text-xs text-slate-400">초당 효율 (3BV/s)</span>
+                    <p
+                      id="modal-eff-val"
+                      class="mt-1 font-mono text-base font-semibold text-amber-400 tabular-nums"
+                    >
+                      0.00 /s
+                    </p>
+                  </div>
+                </div>
+
+                <div class="mt-5 flex items-center justify-end gap-3">
+                  <button
+                    id="modal-inspect-btn"
+                    type="button"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/70 px-4 py-2.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 whitespace-nowrap shrink-0"
+                  >
+                    <svg
+                      class="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span>보드 확인하기</span>
+                  </button>
+
+                  <button
+                    id="modal-play-again-btn"
+                    type="button"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-5 py-2.5 text-xs font-semibold text-slate-950 transition-colors hover:bg-amber-400 whitespace-nowrap shrink-0"
+                  >
+                    <svg
+                      class="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                      <path d="M3 3v5h5"></path>
+                    </svg>
+                    <span>다시 플레이</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subtle Keyboard & Touch Affordance Legend -->
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span>
+              좌클릭: 열기 · 우클릭(모바일 길게 터치): 깃발 · 열린 숫자 클릭: 주변 동시 열기
+            </span>
+            <span>단축키: 방향키 이동 · Space 열기 · F 깃발 · R 재시작 · P 일시정지</span>
+          </div>
+        </div>
+
+        <!-- SECTION 3: RECORDS & LEADERBOARD -->
+        <div id="section-records" class="hidden mx-auto max-w-[1040px] px-6 py-8 md:py-12">
+          <div class="flex flex-col justify-between gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-end">
+            <div>
+              <p class="text-xs font-medium text-slate-400">
+                개인 명예의 전당 · 브라우저 자동 저장
+              </p>
+              <h1 class="mt-1.5 font-display text-2xl font-bold text-slate-50 sm:text-3xl">
+                난이도별 최고 기록 및 통계
+              </h1>
+            </div>
+
+            <!-- Interactive Filter Tabs -->
+            <div class="flex items-center gap-1 self-start rounded-lg border border-slate-800 bg-slate-900 p-1">
+              <button
+                type="button"
+                data-record-tab="beginner"
+                class="rounded-md bg-slate-800 px-3.5 py-1.5 text-xs font-medium text-amber-400 transition-colors whitespace-nowrap shrink-0"
+              >
+                초급 (9×9)
+              </button>
+              <button
+                type="button"
+                data-record-tab="intermediate"
+                class="rounded-md px-3.5 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100 whitespace-nowrap shrink-0"
+              >
+                중급 (16×16)
+              </button>
+              <button
+                type="button"
+                data-record-tab="expert"
+                class="rounded-md px-3.5 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100 whitespace-nowrap shrink-0"
+              >
+                고급 (30×16)
+              </button>
+            </div>
+          </div>
+
+          <!-- Selected Difficulty KPI Strip -->
+          <div class="mt-6 grid grid-cols-2 gap-6 border-b border-slate-800/80 pb-6 sm:grid-cols-4">
+            <div>
+              <p class="text-xs text-slate-400">플레이 횟수</p>
+              <p id="rec-kpi-played" class="mt-1 font-mono text-2xl font-bold text-slate-100 tabular-nums">
+                0회
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-400">클리어 횟수</p>
+              <p id="rec-kpi-won" class="mt-1 font-mono text-2xl font-bold text-emerald-400 tabular-nums">
+                0회
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-400">달성 승률</p>
+              <p id="rec-kpi-winrate" class="mt-1 font-mono text-2xl font-bold text-slate-100 tabular-nums">
+                0%
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-400">현재 / 최고 연승</p>
+              <p id="rec-kpi-streak" class="mt-1 font-mono text-2xl font-bold text-amber-400 tabular-nums">
+                0 / 0연승
+              </p>
+            </div>
+          </div>
+
+          <!-- Records Table or Empty State -->
+          <div class="mt-8">
+            <div
+              id="records-empty-state"
+              class="flex flex-col items-center justify-center rounded-xl border border-slate-800 bg-slate-900/50 px-6 py-14 text-center"
+            >
+              <svg
+                class="h-10 w-10 text-slate-600"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                <path d="M4 22h16"></path>
+                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+              </svg>
+              <h2 id="records-empty-title" class="mt-3 text-base font-semibold text-slate-200">
+                아직 초급 난이도 클리어 기록이 없습니다
+              </h2>
+              <p class="mt-1.5 max-w-md text-sm text-slate-400">
+                지뢰가 없는 모든 안전한 칸을 열면 클리어 시간과 초당 보드 효율(3BV/s)이
+                이곳에 자동으로 기록됩니다.
+              </p>
+              <button
+                id="records-empty-cta-btn"
+                type="button"
+                class="mt-6 inline-flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-xs font-semibold text-slate-950 transition-colors hover:bg-amber-400 whitespace-nowrap shrink-0"
+              >
+                <svg class="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <polygon points="6 3 20 12 6 21 6 3"></polygon>
+                </svg>
+                <span id="records-empty-cta-label">초급 도전 시작</span>
+              </button>
+            </div>
+
+            <div
+              id="records-table-wrapper"
+              class="hidden overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40"
+            >
+              <table class="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr class="border-b border-slate-800 text-xs font-medium text-slate-400">
+                    <th class="px-5 py-3.5">순위</th>
+                    <th class="px-5 py-3.5">클리어 시간</th>
+                    <th class="px-5 py-3.5">보드 기준치 (3BV)</th>
+                    <th class="px-5 py-3.5">초당 효율 (3BV/s)</th>
+                    <th class="px-5 py-3.5">클리어 방식</th>
+                    <th class="px-5 py-3.5 text-right">달성일</th>
+                  </tr>
+                </thead>
+                <tbody id="records-tbody" class="divide-y divide-slate-800/70"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Quiet Record Management Footer -->
+          <div id="records-reset-footer" class="hidden mt-6 items-center justify-end gap-3">
+            <button
+              id="records-reset-trigger-btn"
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 px-3.5 py-2 text-xs font-medium text-slate-400 transition-colors hover:border-slate-700 hover:text-slate-200 whitespace-nowrap shrink-0"
+            >
+              <svg
+                class="h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+              <span>전체 기록 초기화</span>
+            </button>
+
+            <div id="records-reset-confirm-box" class="hidden items-center gap-2">
+              <span class="text-xs text-slate-300">모든 기록과 승률을 삭제할까요?</span>
+              <button
+                id="records-confirm-delete-btn"
+                type="button"
+                class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-500 whitespace-nowrap shrink-0"
+              >
+                삭제 확인
+              </button>
+              <button
+                id="records-cancel-delete-btn"
+                type="button"
+                class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 whitespace-nowrap shrink-0"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: GUIDE PANEL -->
+        <div id="section-guide" class="hidden mx-auto max-w-[1040px] px-6 py-8 md:py-12">
+          <div class="flex flex-col justify-between gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-end">
+            <div>
+              <p class="text-xs font-medium text-slate-400">
+                규칙 안내 · 고급 탐색 기술 · 키보드 및 터치 조작법
+              </p>
+              <h1 class="mt-1.5 font-display text-2xl font-bold text-slate-50 sm:text-3xl">
+                마인스위퍼 플레이 가이드
+              </h1>
+            </div>
+
+            <button
+              id="guide-play-btn"
+              type="button"
+              class="inline-flex items-center gap-2 self-start rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-slate-950 transition-colors hover:bg-amber-400 whitespace-nowrap shrink-0"
+            >
+              <svg class="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                <polygon points="6 3 20 12 6 21 6 3"></polygon>
+              </svg>
+              <span>실전 보드로 이동</span>
+            </button>
+          </div>
+
+          <!-- Core Rules Grid -->
+          <section class="mt-8 grid grid-cols-1 gap-8 md:grid-cols-3">
+            <div>
+              <h2 class="text-base font-semibold text-slate-100">01. 숫자의 의미 파악하기</h2>
+              <p class="mt-2 text-sm leading-relaxed text-slate-300">
+                열린 칸에 적힌 숫자는 해당 칸을 둘러싼 <strong>주변 8칸(상·하·좌·우·대각선)</strong>
+                안에 숨겨진 지뢰의 총 개수입니다. 숫자가 없는 빈 칸은 주변에 지뢰가 0개라는
+                뜻이며, 인접한 안전한 영역이 연쇄적으로 함께 열립니다.
+              </p>
+            </div>
+
+            <div>
+              <h2 class="text-base font-semibold text-slate-100">02. 깃발 표시와 소거법</h2>
+              <p class="mt-2 text-sm leading-relaxed text-slate-300">
+                숫자와 닫힌 칸의 개수를 비교해 지뢰가 확실한 칸에는 <strong>우클릭(또는 길게 터치)</strong>으로
+                깃발을 꽂으세요. 깃발이 꽂힌 칸은 실수로 클릭해도 열리지 않도록 안전하게
+                잠금 보호됩니다.
+              </p>
+            </div>
+
+            <div>
+              <h2 class="text-base font-semibold text-slate-100">03. 주변 동시 열기 (Chording)</h2>
+              <p class="mt-2 text-sm leading-relaxed text-slate-300">
+                이미 열린 숫자 칸 주변에 그 숫자만큼의 깃발을 모두 꽂았다면, <strong>해당 숫자 칸을 한 번 클릭</strong>해
+                보세요. 나머지 닫혀 있는 주변 안전 칸들이 단번에 열려 탐색 속도를 비약적으로
+                단축할 수 있습니다.
+              </p>
+            </div>
+          </section>
+
+          <!-- Visual Pattern Walkthrough -->
+          <section class="mt-10 border-t border-slate-800 pt-8">
+            <h2 class="text-lg font-semibold text-slate-100">실전 핵심 패턴 두 가지</h2>
+            <p class="mt-1 text-sm text-slate-400">
+              복잡해 보이는 보드도 아래의 기본 논리 패턴으로 대부분 해독할 수 있습니다.
+            </p>
+
+            <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+              <!-- Pattern 1 -->
+              <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-100">모서리 확정 법칙</h3>
+                    <p class="mt-1.5 text-xs leading-relaxed text-slate-300">
+                      모서리에 맞닿은 숫자 <span class="font-mono font-bold text-sky-400">1</span> 주변에
+                      닫힌 칸이 단 한 칸뿐이라면 그 칸은 100% 지뢰입니다. 깃발을 꽂은 뒤
+                      인접한 다른 <span class="font-mono font-bold text-sky-400">1</span>을 클릭하면 나머지 칸을 즉시 안전하게 열 수 있습니다.
+                    </p>
+                  </div>
+
+                  <div
+                    aria-hidden="true"
+                    class="grid grid-cols-3 gap-1 rounded-lg border border-slate-800 bg-slate-950 p-2 shrink-0"
+                  >
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-amber-400">
+                      <svg
+                        class="h-4 w-4 fill-current"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                        <line x1="4" x2="4" y1="22" y2="15"></line>
+                      </svg>
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900 font-mono text-sm font-bold text-sky-400">
+                      1
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded border border-emerald-500/40 bg-emerald-950/60 font-mono text-xs text-emerald-300">
+                      안전
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900 font-mono text-sm font-bold text-sky-400">
+                      1
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900 font-mono text-sm font-bold text-sky-400">
+                      1
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pattern 2 -->
+              <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-100">직선 벽면 1 - 2 - 1 공식</h3>
+                    <p class="mt-1.5 text-xs leading-relaxed text-slate-300">
+                      닫힌 벽면을 따라 <span class="font-mono font-bold text-sky-400">1</span> -
+                      <span class="font-mono font-bold text-emerald-400">2</span> -
+                      <span class="font-mono font-bold text-sky-400">1</span>이 나란히 나타나면,
+                      가운데 2 바로 위 칸은 절대 지뢰가 될 수 없으며 양쪽의 1 바로 위 두 칸이
+                      항상 지뢰가 됩니다.
+                    </p>
+                  </div>
+
+                  <div
+                    aria-hidden="true"
+                    class="grid grid-cols-3 gap-1 rounded-lg border border-slate-800 bg-slate-950 p-2 shrink-0"
+                  >
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-amber-400">
+                      <svg
+                        class="h-4 w-4 fill-current"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                        <line x1="4" x2="4" y1="22" y2="15"></line>
+                      </svg>
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded border border-emerald-500/40 bg-emerald-950/60 font-mono text-xs text-emerald-300">
+                      안전
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-amber-400">
+                      <svg
+                        class="h-4 w-4 fill-current"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                        <line x1="4" x2="4" y1="22" y2="15"></line>
+                      </svg>
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900 font-mono text-sm font-bold text-sky-400">
+                      1
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900 font-mono text-sm font-bold text-emerald-400">
+                      2
+                    </div>
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-slate-900 font-mono text-sm font-bold text-sky-400">
+                      1
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Controls Reference Table -->
+          <section class="mt-10 border-t border-slate-800 pt-8">
+            <h2 class="text-lg font-semibold text-slate-100">마우스 · 키보드 · 터치 조작 일람</h2>
+
+            <div class="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+              <table class="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr class="border-b border-slate-800 text-xs font-medium text-slate-400">
+                    <th class="px-5 py-3">동작</th>
+                    <th class="px-5 py-3">마우스 조작</th>
+                    <th class="px-5 py-3">키보드 단축키</th>
+                    <th class="px-5 py-3">모바일 / 터치</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/70 text-slate-300">
+                  <tr>
+                    <td class="px-5 py-3 font-medium text-slate-100">타일 열기</td>
+                    <td class="px-5 py-3">닫힌 칸 좌클릭</td>
+                    <td class="px-5 py-3 font-mono text-xs">방향키 이동 후 Space / Enter</td>
+                    <td class="px-5 py-3">열기 모드에서 가볍게 탭</td>
+                  </tr>
+                  <tr>
+                    <td class="px-5 py-3 font-medium text-slate-100">깃발 표시 / 해제</td>
+                    <td class="px-5 py-3">닫힌 칸 우클릭</td>
+                    <td class="px-5 py-3 font-mono text-xs">F 키</td>
+                    <td class="px-5 py-3">길게 누르기 (0.3초) 또는 깃발 모드 탭</td>
+                  </tr>
+                  <tr>
+                    <td class="px-5 py-3 font-medium text-slate-100">주변 동시 열기</td>
+                    <td class="px-5 py-3">열린 숫자 칸 좌클릭 또는 더블클릭</td>
+                    <td class="px-5 py-3 font-mono text-xs">숫자 칸 위에서 Space / Enter</td>
+                    <td class="px-5 py-3">열린 숫자 칸 탭</td>
+                  </tr>
+                  <tr>
+                    <td class="px-5 py-3 font-medium text-slate-100">빠른 재시작 / 일시정지</td>
+                    <td class="px-5 py-3">상단 상태 버튼 클릭</td>
+                    <td class="px-5 py-3 font-mono text-xs">R (재시작) · P (일시정지)</td>
+                    <td class="px-5 py-3">상단 툴바 버튼 탭</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- Quiet Footer -->
+      <footer class="border-t border-slate-900 bg-slate-950 py-5">
+        <div class="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-4 px-6 text-xs text-slate-500">
+          <span>마인스위퍼 — 정통 논리 지뢰찾기</span>
+          <div class="flex items-center gap-5">
+            <button
+              type="button"
+              data-footer-nav="PLAY"
+              class="transition-colors hover:text-slate-300 whitespace-nowrap shrink-0"
+            >
+              게임 보드
+            </button>
+            <button
+              type="button"
+              data-footer-nav="RECORDS"
+              class="transition-colors hover:text-slate-300 whitespace-nowrap shrink-0"
+            >
+              최고 기록
+            </button>
+            <button
+              type="button"
+              data-footer-nav="GUIDE"
+              class="transition-colors hover:text-slate-300 whitespace-nowrap shrink-0"
+            >
+              플레이 가이드
+            </button>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Pure Vanilla ES6+ JavaScript Entry (Zero-Build GitHub Pages Ready) -->
+    <script type="module" src="./script.js"></script>
   </body>
 </html>
-
