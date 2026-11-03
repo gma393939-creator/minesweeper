@@ -1,0 +1,6 @@
+{
+  "name": "마인스위퍼 — 클래식 지뢰찾기",
+  "description": "첫 클릭 안전 보장, 주변 동시 열기(Chording), 난이도별 최고 기록을 지원하는 정통 전략 지뢰찾기 퍼즐 게임입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
